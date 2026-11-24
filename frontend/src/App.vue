@@ -11,7 +11,14 @@
         </div>
         <q-space />
         <div class="row items-center q-gutter-sm">
-          <q-chip color="green-1" text-color="positive" icon="cloud_done" size="sm">API conectada</q-chip>
+          <q-chip
+            :color="apiConnected === true ? 'green-1' : apiConnected === false ? 'red-1' : 'grey-2'"
+            :text-color="apiConnected === true ? 'positive' : apiConnected === false ? 'negative' : 'grey-7'"
+            :icon="apiConnected === true ? 'cloud_done' : apiConnected === false ? 'cloud_off' : 'cloud_sync'"
+            size="sm"
+          >
+            {{ apiConnected === true ? 'API conectada' : apiConnected === false ? 'API desconectada' : 'Comprobando API...' }}
+          </q-chip>
           <q-avatar color="indigo-1" text-color="primary" size="36px">TF</q-avatar>
         </div>
       </q-toolbar>
@@ -182,11 +189,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { Dialog, Notify } from 'quasar'
 import api from './services/api'
 
 const activities = ref([])
+const stats = ref({ total: 0, pending: 0, in_progress: 0, completed: 0 })
+const apiConnected = ref(null)
 const loading = ref(false)
 const saving = ref(false)
 const errorMessage = ref('')
@@ -220,13 +229,6 @@ const priorityOptions = [
   { label: 'Alta', value: 'high' }
 ]
 
-const stats = computed(() => ({
-  total: activities.value.length,
-  pending: activities.value.filter(a => a.status === 'pending').length,
-  in_progress: activities.value.filter(a => a.status === 'in_progress').length,
-  completed: activities.value.filter(a => a.status === 'completed').length
-}))
-
 let searchTimer
 function debouncedLoad () {
   clearTimeout(searchTimer)
@@ -237,9 +239,13 @@ function debouncedLoad () {
 }
 onUnmounted(() => clearTimeout(searchTimer))
 
+let latestRequestId = 0
+
 async function loadActivities () {
+  const requestId = ++latestRequestId
   loading.value = true
   errorMessage.value = ''
+
   try {
     const { data } = await api.get('/activities', {
       params: {
@@ -248,13 +254,29 @@ async function loadActivities () {
         page: page.value
       }
     })
+
+    // Ignore older responses when a newer search or filter request has started.
+    if (requestId !== latestRequestId) return
+
     activities.value = data.data || []
     lastPage.value = data.meta?.last_page || 1
+    stats.value = {
+      total: Number(data.meta?.stats?.total ?? 0),
+      pending: Number(data.meta?.stats?.pending ?? 0),
+      in_progress: Number(data.meta?.stats?.in_progress ?? 0),
+      completed: Number(data.meta?.stats?.completed ?? 0)
+    }
+    apiConnected.value = true
   } catch (error) {
+    if (requestId !== latestRequestId) return
+
+    apiConnected.value = false
     errorMessage.value = error.response?.data?.message || 'No fue posible conectar con la API. Verifica que Laravel esté ejecutándose.'
     activities.value = []
   } finally {
-    loading.value = false
+    if (requestId === latestRequestId) {
+      loading.value = false
+    }
   }
 }
 
