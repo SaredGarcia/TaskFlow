@@ -13,6 +13,17 @@ class ActivityController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        // These counters describe the complete collection, not only the current page.
+        $statistics = Activity::query()
+            ->selectRaw(
+                'COUNT(*) as total,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed',
+                ['pending', 'in_progress', 'completed']
+            )
+            ->first();
+
         $query = Activity::query()->latest();
 
         if ($request->filled('search')) {
@@ -33,6 +44,12 @@ class ActivityController extends Controller
                 'last_page' => $activities->lastPage(),
                 'per_page' => $activities->perPage(),
                 'total' => $activities->total(),
+                'stats' => [
+                    'total' => (int) $statistics->total,
+                    'pending' => (int) $statistics->pending,
+                    'in_progress' => (int) $statistics->in_progress,
+                    'completed' => (int) $statistics->completed,
+                ],
             ],
         ]);
     }

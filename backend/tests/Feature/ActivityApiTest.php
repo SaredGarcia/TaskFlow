@@ -64,4 +64,31 @@ class ActivityApiTest extends TestCase
 
         $this->assertDatabaseMissing('activities', ['id' => $activity->id]);
     }
+
+    public function test_it_returns_global_statistics_independent_of_filters(): void
+    {
+        $statuses = [
+            ...array_fill(0, 5, 'pending'),
+            ...array_fill(0, 4, 'in_progress'),
+            ...array_fill(0, 4, 'completed'),
+        ];
+
+        foreach ($statuses as $index => $status) {
+            Activity::create([
+                'title' => "Actividad {$index}",
+                'status' => $status,
+                'priority' => 'medium',
+            ]);
+        }
+
+        $this->getJson('/api/activities?status=pending')
+            ->assertOk()
+            ->assertJsonCount(5, 'data')
+            ->assertJsonPath('meta.total', 5)
+            ->assertJsonPath('meta.stats.total', 13)
+            ->assertJsonPath('meta.stats.pending', 5)
+            ->assertJsonPath('meta.stats.in_progress', 4)
+            ->assertJsonPath('meta.stats.completed', 4);
+    }
+
 }
