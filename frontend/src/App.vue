@@ -273,6 +273,7 @@ async function loadActivities () {
     apiConnected.value = false
     errorMessage.value = error.response?.data?.message || 'No fue posible conectar con la API. Verifica que Laravel esté ejecutándose.'
     activities.value = []
+    stats.value = { total: 0, pending: 0, in_progress: 0, completed: 0 }
   } finally {
     if (requestId === latestRequestId) {
       loading.value = false
